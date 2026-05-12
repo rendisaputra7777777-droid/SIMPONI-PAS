@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIMPONI PAS</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-100 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-gradient-to-r from-blue-900 to-slate-800 text-white p-8 shadow-lg">
+    <div class="max-w-7xl mx-auto">
+      <h1 class="text-4xl font-bold">SIMPONI PAS</h1>
+      <p class="mt-2 text-slate-200 text-lg">
+        Sistem Monitoring Pengeluaran Narapidana Terintegrasi Pemasyarakatan
+      </p>
+    </div>
+  </header>
+
+  <!-- Content -->
+  <main class="max-w-7xl mx-auto p-6 space-y-6">
+
+    <!-- Statistik -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+      <div class="bg-white rounded-2xl p-6 shadow-md">
+        <p class="text-slate-500">Total Pengeluaran Hari Ini</p>
+        <h2 class="text-3xl font-bold mt-2">12</h2>
+      </div>
+
+      <div class="bg-white rounded-2xl p-6 shadow-md">
+        <p class="text-slate-500">WBP Belum Kembali</p>
+        <h2 class="text-3xl font-bold mt-2 text-red-600">5</h2>
+      </div>
+
+      <div class="bg-white rounded-2xl p-6 shadow-md">
+        <p class="text-slate-500">WBP Sudah Kembali</p>
+        <h2 class="text-3xl font-bold mt-2 text-green-600">7</h2>
+      </div>
+
+    </div>
+
+    <!-- Form -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- Form Pengeluaran -->
+      <div class="bg-white rounded-3xl shadow-lg p-6">
+
+        <h2 class="text-2xl font-bold mb-6">
+          Form Laporan Pengeluaran WBP
+        </h2>
+
+        <form class="space-y-5">
+
+          <div>
+            <label class="block text-sm font-semibold mb-2">
+              Nama Petugas
+            </label>
+
+            <input
+              type="text"
+              placeholder="Masukkan nama petugas"
+              class="w-full border border-slate-300 rounded-xl px-4 py-3"
+            >
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold mb-2">
+              Tujuan Pengeluaran
+            </label>
+
+            <select
+              class="w-full border border-slate-300 rounded-xl px-4 py-3"
+            >
+              <option>Kegiatan Pembinaan</option>
+              <option>Pemeriksaan Klinik</option>
+              <option>Sidang</option>
+              <option>Kegiatan Kerja</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold mb-2">
+              Jumlah Warga Binaan
+            </label>
+
+            <input
+              type="number"
+              placeholder="Masukkan jumlah WBP"
+              class="w-full border border-slate-300 rounded-xl px-4 py-3"
+            >
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold mb-2">
+              Upload Foto
+            </label>
+
+            <div class="border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center bg-slate-50">
+
+              <input type="file" class="w-full">
+
+              <p class="text-sm text-slate-500 mt-3">
+                Upload dokumentasi pengeluaran warga binaan
+              </p>
+
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            class="w-full bg-blue-900 hover:bg-blue-800 text-white py-3 rounded-2xl font-semibold"
+          >
+            Simpan Laporan
+          </button>
+
+        </form>
+      </div>
+
+      <!-- Form Konfirmasi -->
+      <div class="bg-white rounded-3xl shadow-lg p-6">
+
+        <h2 class="text-2xl font-bold mb-6">
+          Konfirmasi Kembalinya WBP
+        </h2>
+
+        <form class="space-y-5">
+
+          <div>
+            <label class="block text-sm font-semibold mb-2">
+              Nama Petugas Blok Hunian
+            </label>
+
+            <input
+              type="text"
+              placeholder="Masukkan nama petugas blok"
+              class="w-full border border-slate-300 rounded-xl px-4 py-3"
+            >
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold mb-2">
+              Waktu Konfirmasi
+            </label>
+
+            <input
+              type="datetime-local"
+              class="w-full border border-slate-300 rounded-xl px-4 py-3"
+            >
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold mb-2">
+              Catatan Petugas Blok
+            </label>
+
+            <textarea
+              rows="4"
+              placeholder="Masukkan catatan tambahan"
+              class="w-full border border-slate-300 rounded-xl px-4 py-3"
+            ></textarea>
+          </div>
+
+          <button
+            type="submit"
+            class="w-full bg-green-700 hover:bg-green-600 text-white py-3 rounded-2xl font-semibold"
+          >
+            Konfirmasi WBP Telah Kembali
+          </button>
+
+        </form>
+
+      </div>
+
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white rounded-3xl shadow-lg p-6 overflow-x-auto">
+
+      <h2 class="text-2xl font-bold mb-6">
+        Data Laporan Pengeluaran
+      </h2>
+
+      <table class="w-full border-collapse">
+
+        <thead>
+          <tr class="bg-slate-100 text-left">
+
+            <th class="p-4">No</th>
+            <th class="p-4">Nama Petugas</th>
+            <th class="p-4">Tujuan</th>
+            <th class="p-4">Jumlah WBP</th>
+            <th class="p-4">Status</th>
+
+          </tr>
+        </thead>
+
+        <tbody>
+
+          <tr class="border-b">
+
+            <td class="p-4">1</td>
+            <td class="p-4">Rendi Saputra</td>
+            <td class="p-4">Kegiatan Pembinaan</td>
+            <td class="p-4">5</td>
+
+            <td class="p-4">
+              <span class="bg-red-100 text-red-700 px-4 py-2 rounded-full text-sm font-semibold">
+                Belum Kembali
+              </span>
+            </td>
+
+          </tr>
+
+          <tr class="border-b">
+
+            <td class="p-4">2</td>
+            <td class="p-4">Andi Wijaya</td>
+            <td class="p-4">Pemeriksaan Klinik</td>
+            <td class="p-4">2</td>
+
+            <td class="p-4">
+              <span class="bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-semibold">
+                Sudah Kembali
+              </span>
+            </td>
+
+          </tr>
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-slate-900 text-white text-center py-6 mt-10">
+
+    <p class="text-slate-300 text-sm">
+      Sistem Monitoring Administrasi Pengeluaran Warga Binaan
+    </p>
+
+    <p class="font-semibold mt-2">
+      Lapas Kelas IIA Banyuasin
+    </p>
+
+  </footer>
+
+</body>
+</html>
