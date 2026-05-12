@@ -1,377 +1,1483 @@
 <!DOCTYPE html>
 <html lang="id">
-
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIPAMAT — Sistem Pemantauan Administrasi Pengeluaran Warga Binaan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-  <title>SIMPONI PAS</title>
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-analytics.js";
+  import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, query, orderBy, serverTimestamp, where, getDocs }
+    from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
+  import { getStorage, ref, uploadBytes, getDownloadURL }
+    from "https://www.gstatic.com/firebasejs/12.13.0/firebase-storage.js";
 
-  <script src="https://cdn.tailwindcss.com"></script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyANpT5l2_BwmLQwGIkMHAE8iz1jr0DY6vM",
+    authDomain: "simponi-pas.firebaseapp.com",
+    projectId: "simponi-pas",
+    storageBucket: "simponi-pas.firebasestorage.app",
+    messagingSenderId: "69073409378",
+    appId: "1:69073409378:web:75e90b4f9a5c42bbe6083b",
+    measurementId: "G-04DVC6H0NE"
+  };
+
+  let app, db, storage, analytics;
+  let useLocalFallback = false;
+  let localRecords = JSON.parse(localStorage.getItem('sipamat_records') || '[]');
+
+  try {
+    app = initializeApp(firebaseConfig);
+    analytics = getAnalytics(app);
+    db = getFirestore(app);
+    storage = getStorage(app);
+    console.log("Firebase simponi-pas initialized");
+  } catch(e) {
+    console.warn("Firebase init failed, using local storage fallback", e);
+    useLocalFallback = true;
+  }
+
+  window._firebase = { db, storage, collection, addDoc, onSnapshot, doc, updateDoc,
+    query, orderBy, serverTimestamp, where, getDocs, ref, uploadBytes, getDownloadURL,
+    useLocalFallback: () => useLocalFallback,
+    getLocalRecords: () => localRecords,
+    saveLocalRecords: (r) => { localRecords = r; localStorage.setItem('sipamat_records', JSON.stringify(r)); }
+  };
+  window.dispatchEvent(new Event('firebaseReady'));
+</script>
+
+<style>
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface2: #21262d;
+  --surface3: #30363d;
+  --border: #30363d;
+  --border2: #484f58;
+  --text: #e6edf3;
+  --text2: #8b949e;
+  --text3: #6e7681;
+  --accent: #f0883e;
+  --accent2: #d29922;
+  --green: #3fb950;
+  --red: #f85149;
+  --blue: #58a6ff;
+  --purple: #bc8cff;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ── HEADER ── */
+.header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 60px;
+}
+.logo {
+  display: flex; align-items: center; gap: 10px;
+}
+.logo-badge {
+  background: var(--accent);
+  color: #000;
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  letter-spacing: 0.05em;
+}
+.logo-title {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text2);
+  letter-spacing: 0.02em;
+}
+.status-indicator {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--text3); font-family: var(--mono);
+}
+.status-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ── NAV TABS ── */
+.nav {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; gap: 0;
+  padding: 0 20px;
+  overflow-x: auto;
+}
+.nav-tab {
+  padding: 12px 18px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text3);
+  border: none; background: none;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+  white-space: nowrap;
+  display: flex; align-items: center; gap: 6px;
+}
+.nav-tab:hover { color: var(--text); }
+.nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.nav-count {
+  background: var(--surface3);
+  color: var(--text2);
+  font-size: 10px; padding: 1px 6px;
+  border-radius: 10px;
+}
+
+/* ── LAYOUT ── */
+.main { padding: 24px 20px; max-width: 1200px; margin: 0 auto; }
+
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── SECTION TITLE ── */
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px;
+}
+.section-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  display: flex; align-items: center; gap: 8px;
+}
+.section-title::before {
+  content: '';
+  display: inline-block;
+  width: 3px; height: 14px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+/* ── CARDS ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+/* ── FORM ELEMENTS ── */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group.full { grid-column: 1 / -1; }
+
+label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+input, select, textarea {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  padding: 10px 12px;
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent);
+  background: var(--surface3);
+}
+textarea { resize: vertical; min-height: 80px; }
+select option { background: var(--surface2); }
+
+/* ── UPLOAD ZONE ── */
+.upload-zone {
+  border: 2px dashed var(--border2);
+  border-radius: 8px;
+  padding: 32px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--surface2);
+  position: relative;
+}
+.upload-zone:hover, .upload-zone.dragover {
+  border-color: var(--accent);
+  background: rgba(240,136,62,0.05);
+}
+.upload-zone input[type=file] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer;
+  width: 100%; height: 100%;
+}
+.upload-icon { font-size: 28px; margin-bottom: 8px; }
+.upload-text { font-size: 13px; color: var(--text2); }
+.upload-hint { font-size: 11px; color: var(--text3); margin-top: 4px; font-family: var(--mono); }
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px; margin-top: 12px;
+}
+.preview-item {
+  position: relative; aspect-ratio: 1;
+  border-radius: 6px; overflow: hidden;
+  border: 1px solid var(--border);
+}
+.preview-item img { width: 100%; height: 100%; object-fit: cover; }
+.preview-remove {
+  position: absolute; top: 4px; right: 4px;
+  background: rgba(0,0,0,0.7); color: #fff;
+  border: none; border-radius: 50%; width: 20px; height: 20px;
+  cursor: pointer; font-size: 12px; display: flex;
+  align-items: center; justify-content: center;
+}
+
+/* ── BUTTONS ── */
+.btn {
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  border: none; cursor: pointer;
+  transition: all 0.15s;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #000;
+}
+.btn-primary:hover { background: #e07a2e; transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); }
+.btn-success {
+  background: var(--green);
+  color: #000;
+}
+.btn-success:hover { background: #34a847; }
+.btn-outline {
+  background: transparent;
+  color: var(--text2);
+  border: 1px solid var(--border2);
+}
+.btn-outline:hover { border-color: var(--text2); color: var(--text); }
+.btn-danger {
+  background: transparent;
+  color: var(--red);
+  border: 1px solid var(--red);
+}
+.btn-danger:hover { background: var(--red); color: #fff; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.btn-full { width: 100%; justify-content: center; }
+
+/* ── RECORD CARDS ── */
+.record-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.record-card:hover { border-color: var(--border2); }
+
+.record-header {
+  padding: 14px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap; gap: 8px;
+}
+.record-id {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent);
+}
+.record-time {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+}
+
+.record-body { padding: 14px 16px; }
+
+.record-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.meta-item { }
+.meta-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.meta-value {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* ── STATUS BADGE ── */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 20px;
+  font-family: var(--mono); font-size: 10px;
+  font-weight: 600; letter-spacing: 0.05em;
+}
+.badge-pending {
+  background: rgba(240,136,62,0.15);
+  color: var(--accent);
+  border: 1px solid rgba(240,136,62,0.3);
+}
+.badge-returned {
+  background: rgba(63,185,80,0.15);
+  color: var(--green);
+  border: 1px solid rgba(63,185,80,0.3);
+}
+
+/* ── PHOTOS ROW ── */
+.photos-row {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;
+}
+.photo-thumb {
+  width: 70px; height: 70px;
+  border-radius: 6px; overflow: hidden;
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+/* ── CONFIRM SECTION ── */
+.confirm-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px;
+}
+.confirm-form {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.confirm-input {
+  width: 200px;
+  background: var(--surface3);
+}
+
+/* ── STATS ── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+.stat-number {
+  font-family: var(--mono);
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.stat-label {
+  font-size: 11px;
+  color: var(--text3);
+  font-family: var(--mono);
+  letter-spacing: 0.03em;
+}
+
+/* ── LIGHTBOX ── */
+.lightbox {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.9);
+  z-index: 1000;
+  align-items: center; justify-content: center;
+}
+.lightbox.open { display: flex; }
+.lightbox img { max-width: 90vw; max-height: 90vh; border-radius: 8px; }
+.lightbox-close {
+  position: absolute; top: 20px; right: 20px;
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  width: 36px; height: 36px; border-radius: 50%;
+  cursor: pointer; font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ── TOAST ── */
+.toast-container {
+  position: fixed; bottom: 24px; right: 24px;
+  display: flex; flex-direction: column; gap: 8px;
+  z-index: 9999;
+}
+.toast {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  display: flex; align-items: center; gap: 10px;
+  animation: slideIn 0.3s ease;
+  min-width: 260px; max-width: 360px;
+}
+.toast.success { border-left: 3px solid var(--green); }
+.toast.error { border-left: 3px solid var(--red); }
+.toast.info { border-left: 3px solid var(--blue); }
+@keyframes slideIn {
+  from { transform: translateX(100px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* ── LOADING ── */
+.loading-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(13,17,23,0.8);
+  z-index: 500;
+  align-items: center; justify-content: center;
+}
+.loading-overlay.show { display: flex; }
+.spinner {
+  width: 40px; height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── EMPTY STATE ── */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text3);
+}
+.empty-icon { font-size: 40px; margin-bottom: 12px; }
+.empty-text { font-family: var(--mono); font-size: 13px; }
+
+/* ── FILTER BAR ── */
+.filter-bar {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 20px;
+  align-items: center;
+}
+.filter-bar input, .filter-bar select {
+  width: auto; flex: 1; min-width: 120px;
+}
+
+/* ── DIVIDER ── */
+.divider {
+  height: 1px; background: var(--border);
+  margin: 16px 0;
+}
+
+/* ── FIREBASE CONFIG BANNER ── */
+.config-banner {
+  background: rgba(210,153,34,0.1);
+  border: 1px solid rgba(210,153,34,0.3);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+  display: none;
+}
+.config-banner.show { display: block; }
+.config-banner h4 { color: var(--accent2); font-size: 13px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.config-banner p { font-size: 12px; color: var(--text2); line-height: 1.7; }
+.config-banner code {
+  background: var(--surface3);
+  padding: 1px 6px; border-radius: 3px;
+  font-family: var(--mono); font-size: 11px; color: var(--accent);
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 480px) {
+  .header { padding: 0 12px; }
+  .main { padding: 16px 12px; }
+  .nav { padding: 0 8px; }
+  .nav-tab { padding: 10px 12px; font-size: 11px; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* ── DAY NAVIGATOR ── */
+.day-navigator {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+.day-nav-btn {
+  background: transparent;
+  border: none;
+  color: var(--text2);
+  font-size: 24px;
+  font-weight: 300;
+  cursor: pointer;
+  padding: 0 20px;
+  height: 72px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.day-nav-btn:hover { background: var(--surface2); color: var(--text); }
+.day-nav-btn:disabled { opacity: 0.2; cursor: not-allowed; }
+.day-center {
+  flex: 1;
+  text-align: center;
+  padding: 14px 10px;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  cursor: pointer;
+  position: relative;
+}
+.day-center:hover { background: var(--surface2); }
+.day-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+.day-date {
+  font-family: var(--mono);
+  font-size: 15px;
+  color: var(--text);
+  font-weight: 600;
+}
+#dayPicker {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer;
+  width: 100%; height: 100%;
+  padding: 0; border: none; background: none;
+}
+
+/* ── WEEK CHART ── */
+.week-chart {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  align-items: end;
+  height: 80px;
+}
+.week-bar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  justify-content: flex-end;
+  cursor: pointer;
+}
+.week-bar-col:hover .week-bar { filter: brightness(1.3); }
+.week-bar-col.selected .week-bar { background: var(--accent) !important; }
+.week-bar-col.selected .week-day-label { color: var(--accent); }
+.week-bar {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  background: var(--surface3);
+  min-height: 4px;
+  transition: height 0.4s cubic-bezier(.4,0,.2,1), background 0.2s;
+}
+.week-bar.has-data { background: var(--blue); }
+.week-count {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  line-height: 1;
+}
+.week-day-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  white-space: nowrap;
+}
+
+
+@media print {
+  .header, .nav, .btn, .confirm-box { display: none !important; }
+  body { background: #fff; color: #000; }
+  .record-card { border: 1px solid #ccc; break-inside: avoid; }
+}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 3px; }
+</style>
 </head>
+<body>
 
-<body class="bg-slate-100 min-h-screen">
+<!-- HEADER -->
+<header class="header">
+  <div class="logo">
+    <span class="logo-badge">SIPAMAT</span>
+    <span class="logo-title">Pemantauan Warga Binaan</span>
+  </div>
+  <div class="status-indicator">
+    <span class="status-dot" id="statusDot"></span>
+    <span id="statusText">Menghubungkan...</span>
+  </div>
+</header>
 
-  <!-- HEADER -->
-  <header class="bg-gradient-to-r from-blue-900 to-slate-800 text-white p-8 shadow-lg">
+<!-- NAV -->
+<nav class="nav">
+  <button class="nav-tab active" data-page="dashboard" onclick="switchPage('dashboard')">
+    📊 Dashboard
+  </button>
+  <button class="nav-tab" data-page="laporan" onclick="switchPage('laporan')">
+    📋 Buat Laporan
+  </button>
+  <button class="nav-tab" data-page="daftar" onclick="switchPage('daftar')">
+    🗂️ Daftar Laporan
+    <span class="nav-count" id="totalCount">0</span>
+  </button>
+  <button class="nav-tab" data-page="konfirmasi" onclick="switchPage('konfirmasi')">
+    ✅ Konfirmasi Kembali
+    <span class="nav-count" id="pendingCount">0</span>
+  </button>
+</nav>
 
-    <div class="max-w-7xl mx-auto">
+<!-- MAIN -->
+<main class="main">
 
-      <h1 class="text-4xl font-bold">
-        SIMPONI PAS
-      </h1>
+  <!-- CONFIG BANNER (hidden - firebase sudah terkonfigurasi) -->
+  <div class="config-banner" id="configBanner" style="display:none"></div>
 
-      <p class="mt-2 text-slate-200 text-lg">
-        Sistem Monitoring Pengeluaran Narapidana Terintegrasi Pemasyarakatan
-      </p>
+  <!-- ═══ DASHBOARD PAGE ═══ -->
+  <div class="page active" id="page-dashboard">
 
+    <!-- DAY NAVIGATOR -->
+    <div class="day-navigator">
+      <button class="day-nav-btn" id="btnPrevDay" onclick="shiftDay(-1)" title="Hari sebelumnya">
+        ‹
+      </button>
+      <div class="day-center">
+        <div class="day-label" id="dayLabel">Hari Ini</div>
+        <div class="day-date" id="dayFullDate"></div>
+        <input type="date" id="dayPicker" onchange="pickDay(this.value)" title="Pilih tanggal">
+      </div>
+      <button class="day-nav-btn" id="btnNextDay" onclick="shiftDay(1)" title="Hari berikutnya">
+        ›
+      </button>
     </div>
 
-  </header>
-
-  <!-- CONTENT -->
-  <main class="max-w-7xl mx-auto p-6 space-y-6">
-
-    <!-- DASHBOARD -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-      <div class="bg-white rounded-2xl shadow-md p-6">
-        <p class="text-slate-500">Sistem</p>
-        <h2 class="text-3xl font-bold text-green-600 mt-2">
-          Online
-        </h2>
-      </div>
-
-      <div class="bg-white rounded-2xl shadow-md p-6">
-        <p class="text-slate-500">Monitoring</p>
-        <h2 class="text-3xl font-bold mt-2">
-          Realtime
-        </h2>
-      </div>
-
-      <div class="bg-white rounded-2xl shadow-md p-6">
-        <p class="text-slate-500">Multi Device</p>
-        <h2 class="text-3xl font-bold text-blue-700 mt-2">
-          Aktif
-        </h2>
-      </div>
-
+    <!-- TODAY BADGE / RETURN TO TODAY -->
+    <div id="returnTodayBar" style="display:none;text-align:center;margin-bottom:16px">
+      <button class="btn btn-outline" style="font-size:11px;padding:6px 16px" onclick="goToday()">
+        ↩ Kembali ke Hari Ini
+      </button>
     </div>
 
-    <!-- FORM -->
-    <div class="bg-white rounded-3xl shadow-lg p-6">
+    <!-- STATS -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-number" id="stat-total">0</div>
+        <div class="stat-label">Total Laporan</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" style="color:var(--accent)" id="stat-pending">0</div>
+        <div class="stat-label">Belum Kembali</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" style="color:var(--green)" id="stat-returned">0</div>
+        <div class="stat-label">Sudah Kembali</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" style="color:var(--blue)" id="stat-wb">0</div>
+        <div class="stat-label">Total WB Keluar</div>
+      </div>
+    </div>
 
-      <h2 class="text-2xl font-bold mb-6">
-        Form Pengeluaran Warga Binaan
-      </h2>
+    <!-- MINI BAR CHART — 7 hari terakhir -->
+    <div class="section-header" style="margin-top:4px">
+      <span class="section-title">Aktivitas 7 Hari Terakhir</span>
+    </div>
+    <div class="card" style="padding:16px 20px 12px">
+      <div class="week-chart" id="weekChart"></div>
+    </div>
 
-      <form id="formPengeluaran" class="space-y-5">
+    <!-- LAPORAN HARI INI -->
+    <div class="section-header" style="margin-top:20px">
+      <span class="section-title" id="activityTitle">Laporan Hari Ini</span>
+      <span id="activityCount" style="font-family:var(--mono);font-size:11px;color:var(--text3)"></span>
+    </div>
+    <div id="recentActivity">
+      <div class="empty-state">
+        <div class="empty-icon">📭</div>
+        <div class="empty-text">Belum ada laporan untuk tanggal ini</div>
+      </div>
+    </div>
+  </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+  <!-- ═══ LAPORAN PAGE ═══ -->
+  <div class="page" id="page-laporan">
+    <div class="section-header">
+      <span class="section-title">Formulir Laporan Pengeluaran</span>
+    </div>
 
-          <div>
-            <label class="block font-semibold mb-2">
-              Nama Petugas
-            </label>
-
-            <input
-              type="text"
-              id="namaPetugas"
-              required
-              placeholder="Masukkan nama petugas"
-              class="w-full border border-slate-300 rounded-xl px-4 py-3"
-            >
+    <div class="card">
+      <form id="laporanForm" onsubmit="submitLaporan(event)">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Nama Petugas Pengawal *</label>
+            <input type="text" id="f_petugas" placeholder="Nama lengkap petugas" required>
           </div>
-
-          <div>
-            <label class="block font-semibold mb-2">
-              Tujuan Pengeluaran
-            </label>
-
-            <select
-              id="tujuan"
-              class="w-full border border-slate-300 rounded-xl px-4 py-3"
-            >
-              <option>Kegiatan Pembinaan</option>
-              <option>Pemeriksaan Klinik</option>
-              <option>Sidang</option>
-              <option>Kegiatan Kerja</option>
+          <div class="form-group">
+            <label>NIP / No. Pegawai</label>
+            <input type="text" id="f_nip" placeholder="NIP petugas (opsional)">
+          </div>
+          <div class="form-group">
+            <label>Tujuan Pengeluaran *</label>
+            <select id="f_tujuan" required>
+              <option value="">-- Pilih Tujuan --</option>
+              <option>Sidang Pengadilan</option>
+              <option>Pemeriksaan Medis / Rumah Sakit</option>
+              <option>BAP Penyidik</option>
+              <option>Kunjungan Keluarga (Luar LP)</option>
+              <option>Asimilasi / Program Reintegrasi</option>
+              <option>Kerja Bakti Luar LP</option>
+              <option>Pemindahan Antar Lapas / Rutan</option>
+              <option>Keperluan Administratif Lain</option>
+              <option value="lainnya">Lainnya (isi manual)</option>
             </select>
           </div>
-
-          <div>
-            <label class="block font-semibold mb-2">
-              Jumlah WBP
-            </label>
-
-            <input
-              type="number"
-              id="jumlah"
-              required
-              placeholder="Masukkan jumlah WBP"
-              class="w-full border border-slate-300 rounded-xl px-4 py-3"
-            >
+          <div class="form-group" id="tujuanLainGroup" style="display:none">
+            <label>Uraian Tujuan *</label>
+            <input type="text" id="f_tujuan_lain" placeholder="Jelaskan tujuan pengeluaran">
           </div>
-
-          <div>
-            <label class="block font-semibold mb-2">
-              Nama Warga Binaan
-            </label>
-
-            <input
-              type="text"
-              id="namaWbp"
-              required
-              placeholder="Masukkan nama warga binaan"
-              class="w-full border border-slate-300 rounded-xl px-4 py-3"
-            >
+          <div class="form-group">
+            <label>Jumlah Warga Binaan *</label>
+            <input type="number" id="f_jumlah" min="1" max="999" placeholder="0" required>
           </div>
-
-          <div>
-            <label class="block font-semibold mb-2">
-              Nomor Register
-            </label>
-
-            <input
-              type="text"
-              id="register"
-              required
-              placeholder="Masukkan nomor register"
-              class="w-full border border-slate-300 rounded-xl px-4 py-3"
-            >
+          <div class="form-group">
+            <label>Tanggal & Waktu Keluar *</label>
+            <input type="datetime-local" id="f_waktu" required>
           </div>
-
-          <div>
-            <label class="block font-semibold mb-2">
-              Blok / Kamar
-            </label>
-
-            <input
-              type="text"
-              id="blok"
-              required
-              placeholder="Contoh: Blok Angsa / A1"
-              class="w-full border border-slate-300 rounded-xl px-4 py-3"
-            >
+          <div class="form-group">
+            <label>Blok / Kamar Hunian</label>
+            <input type="text" id="f_blok" placeholder="Contoh: Blok A - Kamar 12">
           </div>
-
-          <div>
-            <label class="block font-semibold mb-2">
-              Pengawal / Petugas
-            </label>
-
-            <input
-              type="text"
-              id="pengawal"
-              required
-              placeholder="Masukkan nama pengawal"
-              class="w-full border border-slate-300 rounded-xl px-4 py-3"
-            >
+          <div class="form-group">
+            <label>Kendaraan / Moda Transportasi</label>
+            <input type="text" id="f_kendaraan" placeholder="Contoh: Mobil Tahanan B 1234 KA">
           </div>
-
+          <div class="form-group full">
+            <label>Nama-nama Warga Binaan</label>
+            <textarea id="f_namawb" placeholder="Masukkan nama-nama warga binaan yang dikeluarkan (satu nama per baris)..."></textarea>
+          </div>
+          <div class="form-group full">
+            <label>Catatan Tambahan</label>
+            <textarea id="f_catatan" placeholder="Informasi tambahan yang perlu dicatat..."></textarea>
+          </div>
+          <div class="form-group full">
+            <label>Upload Foto Dokumentasi</label>
+            <div class="upload-zone" id="uploadZone">
+              <input type="file" id="f_foto" accept="image/*" multiple onchange="handleFileSelect(this)">
+              <div class="upload-icon">📷</div>
+              <div class="upload-text">Klik atau seret foto ke sini</div>
+              <div class="upload-hint">JPG, PNG, WEBP — Maks. 5 foto @ 5MB</div>
+            </div>
+            <div class="preview-grid" id="previewGrid"></div>
+          </div>
         </div>
 
-        <button
-          type="submit"
-          class="w-full bg-blue-900 hover:bg-blue-800 text-white py-3 rounded-2xl font-semibold"
-        >
-          Simpan Laporan
-        </button>
+        <div class="divider"></div>
 
+        <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+          <button type="button" class="btn btn-outline" onclick="resetForm()">↺ Reset</button>
+          <button type="submit" class="btn btn-primary" id="submitBtn">
+            📤 Kirim Laporan
+          </button>
+        </div>
       </form>
+    </div>
+  </div>
 
+  <!-- ═══ DAFTAR PAGE ═══ -->
+  <div class="page" id="page-daftar">
+    <div class="section-header">
+      <span class="section-title">Daftar Laporan Pengeluaran</span>
+      <button class="btn btn-outline" style="font-size:11px;padding:6px 12px" onclick="printPage()">🖨️ Cetak</button>
     </div>
 
-    <!-- TABLE -->
-    <div class="bg-white rounded-3xl shadow-lg p-6 overflow-x-auto">
-
-      <h2 class="text-2xl font-bold mb-6">
-        Monitoring Pengeluaran WBP
-      </h2>
-
-      <table class="w-full border-collapse">
-
-        <thead>
-
-          <tr class="bg-slate-100 text-left">
-
-            <th class="p-4">No</th>
-            <th class="p-4">Petugas</th>
-            <th class="p-4">Tujuan</th>
-            <th class="p-4">Jumlah</th>
-            <th class="p-4">Nama WBP</th>
-            <th class="p-4">Register</th>
-            <th class="p-4">Blok</th>
-            <th class="p-4">Pengawal</th>
-            <th class="p-4">Status</th>
-            <th class="p-4">Aksi</th>
-
-          </tr>
-
-        </thead>
-
-        <tbody id="tableBody"></tbody>
-
-      </table>
-
+    <div class="filter-bar">
+      <input type="text" id="filterSearch" placeholder="🔍 Cari petugas / tujuan..." oninput="filterRecords()">
+      <select id="filterStatus" onchange="filterRecords()">
+        <option value="">Semua Status</option>
+        <option value="pending">Belum Kembali</option>
+        <option value="returned">Sudah Kembali</option>
+      </select>
+      <input type="date" id="filterDate" onchange="filterRecords()">
     </div>
 
-  </main>
+    <div id="daftarList">
+      <div class="empty-state">
+        <div class="empty-icon">📂</div>
+        <div class="empty-text">Belum ada laporan</div>
+      </div>
+    </div>
+  </div>
 
-  <!-- FOOTER -->
-  <footer class="bg-slate-900 text-white text-center py-6 mt-10">
+  <!-- ═══ KONFIRMASI PAGE ═══ -->
+  <div class="page" id="page-konfirmasi">
+    <div class="section-header">
+      <span class="section-title">Konfirmasi Kembali ke Kamar Hunian</span>
+    </div>
 
-    <p class="text-slate-300 text-sm">
-      Sistem Monitoring Administrasi Pengeluaran Warga Binaan
-    </p>
+    <div class="card" style="margin-bottom:20px;background:rgba(63,185,80,0.05);border-color:rgba(63,185,80,0.2)">
+      <p style="font-size:13px;color:var(--text2);line-height:1.7">
+        ✅ Halaman ini digunakan oleh <strong style="color:var(--green)">Petugas Blok Hunian</strong> untuk mengkonfirmasi
+        bahwa warga binaan yang dikeluarkan telah <strong>kembali ke kamar hunian</strong>.
+        Pilih laporan yang statusnya masih <strong>Belum Kembali</strong>, lalu isi nama petugas blok dan konfirmasi.
+      </p>
+    </div>
 
-    <p class="font-semibold mt-2">
-      Lapas Kelas IIA Banyuasin
-    </p>
+    <div id="konfirmasiList">
+      <div class="empty-state">
+        <div class="empty-icon">✅</div>
+        <div class="empty-text">Tidak ada pengeluaran yang perlu dikonfirmasi</div>
+      </div>
+    </div>
+  </div>
 
-  </footer>
+</main><!-- /main -->
 
-  <!-- FIREBASE -->
-  <script type="module">
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightboxImg" src="" alt="Foto dokumentasi">
+</div>
 
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
+<!-- LOADING -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+</div>
 
-    import {
-      getFirestore,
-      collection,
-      addDoc,
-      onSnapshot,
-      updateDoc,
-      doc,
-      serverTimestamp
-    } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
+<!-- TOAST -->
+<div class="toast-container" id="toastContainer"></div>
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyAWTC_VFILnLhaMtcELNOKue7wcEkq7EZs",
-      authDomain: "kontorl-keluar-wbp.firebaseapp.com",
-      projectId: "kontorl-keluar-wbp",
-      storageBucket: "kontorl-keluar-wbp.firebasestorage.app",
-      messagingSenderId: "609954882901",
-      appId: "1:609954882901:web:6327a0e05b909503adfbdc",
-      measurementId: "G-YK9FK6VH8V"
-    };
+<script>
+// ═══════════════════════════════════════════════
+//  APP STATE
+// ═══════════════════════════════════════════════
+let allRecords = [];
+let selectedFiles = [];
+let fbReady = false;
 
-    // INIT
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+// ── Dashboard date state ──
+const todayStr = () => new Date().toISOString().slice(0,10); // YYYY-MM-DD
+let dashboardDate = todayStr(); // currently viewed date
 
-    // ELEMENT
-    const formPengeluaran = document.getElementById("formPengeluaran");
-    const tableBody = document.getElementById("tableBody");
+// ═══════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════
+updateDayNavigator();
 
-    // SIMPAN DATA
-    formPengeluaran.addEventListener("submit", async (e) => {
+// Set default datetime
+const now = new Date();
+now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+document.getElementById('f_waktu').value = now.toISOString().slice(0,16);
 
-      e.preventDefault();
+// Wait for Firebase
+window.addEventListener('firebaseReady', initFirebase);
+setTimeout(() => {
+  if (!fbReady) initLocalMode();
+}, 2000);
 
-      const namaPetugas = document.getElementById("namaPetugas").value;
-      const tujuan = document.getElementById("tujuan").value;
-      const jumlah = document.getElementById("jumlah").value;
+function initFirebase() {
+  fbReady = true;
+  const fb = window._firebase;
 
-      const namaWbp = document.getElementById("namaWbp").value;
-      const register = document.getElementById("register").value;
-      const blok = document.getElementById("blok").value;
-      const pengawal = document.getElementById("pengawal").value;
+  if (fb.useLocalFallback()) {
+    initLocalMode();
+    return;
+  }
 
-      await addDoc(collection(db, "laporan_pengeluaran"), {
+  document.getElementById('configBanner').classList.remove('show');
 
-        namaPetugas,
-        tujuan,
-        jumlah,
-        namaWbp,
-        register,
-        blok,
-        pengawal,
-        status: "Belum Kembali",
-        waktu: serverTimestamp()
-
-      });
-
-      alert("Laporan berhasil disimpan");
-
-      formPengeluaran.reset();
-
+  // Real-time listener
+  try {
+    const q = fb.query(fb.collection(fb.db, 'laporan'), fb.orderBy('createdAt', 'desc'));
+    fb.onSnapshot(q, (snap) => {
+      allRecords = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderAll();
+      setStatus(true);
+    }, (err) => {
+      console.error(err);
+      initLocalMode();
     });
+  } catch(e) {
+    initLocalMode();
+  }
+}
 
-    // REALTIME TABLE
-    onSnapshot(collection(db, "laporan_pengeluaran"), (snapshot) => {
+function initLocalMode() {
+  document.getElementById('statusDot').style.background = 'var(--accent2)';
+  document.getElementById('statusText').textContent = 'Mode Lokal';
 
-      tableBody.innerHTML = "";
+  allRecords = window._firebase?.getLocalRecords() || [];
+  // add mock id if missing
+  allRecords = allRecords.map((r,i) => ({ id: r.id || ('local_' + i), ...r }));
+  renderAll();
+}
 
-      let no = 1;
+function setStatus(online) {
+  document.getElementById('statusDot').style.background = online ? 'var(--green)' : 'var(--red)';
+  document.getElementById('statusText').textContent = online ? 'Online — Tersinkron' : 'Offline';
+}
 
-      snapshot.forEach((docSnap) => {
+// ═══════════════════════════════════════════════
+//  NAV
+// ═══════════════════════════════════════════════
+function switchPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelector(`[data-page="${name}"]`).classList.add('active');
+}
 
-        const data = docSnap.data();
+// ═══════════════════════════════════════════════
+//  FILE UPLOAD
+// ═══════════════════════════════════════════════
+const uploadZone = document.getElementById('uploadZone');
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.classList.remove('dragover');
+  const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+  addFiles(files);
+});
 
-        tableBody.innerHTML += `
+function handleFileSelect(input) {
+  addFiles(Array.from(input.files));
+  input.value = '';
+}
 
-          <tr class="border-b">
+function addFiles(files) {
+  files.forEach(f => {
+    if (selectedFiles.length >= 5) { showToast('Maks. 5 foto', 'error'); return; }
+    if (f.size > 5 * 1024 * 1024) { showToast(`${f.name} terlalu besar (maks. 5MB)`, 'error'); return; }
+    selectedFiles.push(f);
+  });
+  renderPreviews();
+}
 
-            <td class="p-4">${no++}</td>
-            <td class="p-4">${data.namaPetugas}</td>
-            <td class="p-4">${data.tujuan}</td>
-            <td class="p-4">${data.jumlah}</td>
-            <td class="p-4">${data.namaWbp}</td>
-            <td class="p-4">${data.register}</td>
-            <td class="p-4">${data.blok}</td>
-            <td class="p-4">${data.pengawal}</td>
+function renderPreviews() {
+  const grid = document.getElementById('previewGrid');
+  grid.innerHTML = '';
+  selectedFiles.forEach((f, i) => {
+    const url = URL.createObjectURL(f);
+    const div = document.createElement('div');
+    div.className = 'preview-item';
+    div.innerHTML = `<img src="${url}"><button class="preview-remove" onclick="removeFile(${i})">✕</button>`;
+    grid.appendChild(div);
+  });
+}
 
-            <td class="p-4">
+function removeFile(i) {
+  selectedFiles.splice(i, 1);
+  renderPreviews();
+}
 
-              <span class="
-                px-4 py-2 rounded-full text-sm font-semibold
-                ${data.status === "Sudah Kembali"
-                  ? "bg-green-100 text-green-700"
-                  : "bg-red-100 text-red-700"}
-              ">
+// ═══════════════════════════════════════════════
+//  SUBMIT LAPORAN
+// ═══════════════════════════════════════════════
+async function submitLaporan(e) {
+  e.preventDefault();
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Menyimpan...';
+  showLoading(true);
 
-                ${data.status}
+  const tujuanEl = document.getElementById('f_tujuan');
+  const tujuan = tujuanEl.value === 'lainnya'
+    ? document.getElementById('f_tujuan_lain').value
+    : tujuanEl.value;
 
-              </span>
+  const data = {
+    petugas: document.getElementById('f_petugas').value.trim(),
+    nip: document.getElementById('f_nip').value.trim(),
+    tujuan,
+    jumlah: parseInt(document.getElementById('f_jumlah').value),
+    waktuKeluar: document.getElementById('f_waktu').value,
+    blok: document.getElementById('f_blok').value.trim(),
+    kendaraan: document.getElementById('f_kendaraan').value.trim(),
+    namaWB: document.getElementById('f_namawb').value.trim(),
+    catatan: document.getElementById('f_catatan').value.trim(),
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+    photos: []
+  };
 
-            </td>
+  // Upload photos
+  if (selectedFiles.length > 0) {
+    const fb = window._firebase;
+    if (!fb.useLocalFallback() && fb.storage) {
+      for (const file of selectedFiles) {
+        try {
+          const storRef = fb.ref(fb.storage, `laporan/${Date.now()}_${file.name}`);
+          const snap = await fb.uploadBytes(storRef, file);
+          const url = await fb.getDownloadURL(snap.ref);
+          data.photos.push(url);
+        } catch(err) {
+          console.warn('Upload photo failed:', err);
+          // fallback: base64
+          const b64 = await fileToBase64(file);
+          data.photos.push(b64);
+        }
+      }
+    } else {
+      // base64 fallback
+      for (const file of selectedFiles) {
+        const b64 = await fileToBase64(file);
+        data.photos.push(b64);
+      }
+    }
+  }
 
-            <td class="p-4">
-
-              <button
-                onclick="konfirmasiKembali('${docSnap.id}')"
-                class="bg-green-700 hover:bg-green-600 text-white px-4 py-2 rounded-xl"
-              >
-
-                Konfirmasi
-
-              </button>
-
-            </td>
-
-          </tr>
-
-        `;
-
+  // Save to Firestore or local
+  const fb = window._firebase;
+  if (!fb.useLocalFallback() && fb.db) {
+    try {
+      await fb.addDoc(fb.collection(fb.db, 'laporan'), {
+        ...data, createdAt: fb.serverTimestamp()
       });
+      showToast('Laporan berhasil disimpan ✓', 'success');
+    } catch(err) {
+      console.error(err);
+      saveLocal(data);
+    }
+  } else {
+    saveLocal(data);
+    showToast('Laporan disimpan (mode lokal) ✓', 'success');
+  }
 
-    });
+  resetForm();
+  showLoading(false);
+  btn.disabled = false;
+  btn.textContent = '📤 Kirim Laporan';
+  switchPage('daftar');
+}
 
-    // KONFIRMASI
-    window.konfirmasiKembali = async (id) => {
+function saveLocal(data) {
+  const fb = window._firebase;
+  const records = fb.getLocalRecords();
+  const newRecord = { id: 'local_' + Date.now(), ...data };
+  records.unshift(newRecord);
+  fb.saveLocalRecords(records);
+  allRecords = records;
+  renderAll();
+}
 
-      const ref = doc(db, "laporan_pengeluaran", id);
+function fileToBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
 
-      await updateDoc(ref, {
-        status: "Sudah Kembali"
-      });
+function resetForm() {
+  document.getElementById('laporanForm').reset();
+  selectedFiles = [];
+  renderPreviews();
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById('f_waktu').value = now.toISOString().slice(0,16);
+  document.getElementById('tujuanLainGroup').style.display = 'none';
+}
 
-      alert("Status berhasil diperbarui");
+document.getElementById('f_tujuan').addEventListener('change', function() {
+  document.getElementById('tujuanLainGroup').style.display =
+    this.value === 'lainnya' ? 'block' : 'none';
+  if (this.value === 'lainnya') {
+    document.getElementById('f_tujuan_lain').required = true;
+  } else {
+    document.getElementById('f_tujuan_lain').required = false;
+  }
+});
 
-    };
+// ═══════════════════════════════════════════════
+//  DAY NAVIGATION
+// ═══════════════════════════════════════════════
+function shiftDay(delta) {
+  const d = new Date(dashboardDate + 'T00:00:00');
+  d.setDate(d.getDate() + delta);
+  const newDate = d.toISOString().slice(0,10);
+  // Don't go into future
+  if (newDate > todayStr()) return;
+  dashboardDate = newDate;
+  updateDayNavigator();
+  renderDashboard();
+}
 
-  </script>
+function pickDay(val) {
+  if (!val) return;
+  if (val > todayStr()) { showToast('Tidak bisa memilih tanggal masa depan', 'error'); return; }
+  dashboardDate = val;
+  updateDayNavigator();
+  renderDashboard();
+}
 
+function goToday() {
+  dashboardDate = todayStr();
+  updateDayNavigator();
+  renderDashboard();
+}
+
+function updateDayNavigator() {
+  const isToday = dashboardDate === todayStr();
+  const d = new Date(dashboardDate + 'T00:00:00');
+
+  // Label
+  let label = '';
+  const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+  const yStr = yesterday.toISOString().slice(0,10);
+  if (isToday) label = 'HARI INI';
+  else if (dashboardDate === yStr) label = 'KEMARIN';
+  else {
+    const daysAgo = Math.floor((new Date(todayStr()) - d) / 86400000);
+    label = daysAgo + ' HARI LALU';
+  }
+
+  document.getElementById('dayLabel').textContent = label;
+  document.getElementById('dayFullDate').textContent = d.toLocaleDateString('id-ID', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+  document.getElementById('dayPicker').value = dashboardDate;
+  document.getElementById('btnNextDay').disabled = isToday;
+  document.getElementById('returnTodayBar').style.display = isToday ? 'none' : 'block';
+
+  // Section title
+  const titleEl = document.getElementById('activityTitle');
+  if (titleEl) titleEl.textContent = isToday ? 'Laporan Hari Ini' : `Laporan ${d.toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'})}`;
+}
+
+function getRecordsForDate(dateStr) {
+  return allRecords.filter(r => {
+    const ts = r.waktuKeluar || r.createdAt || '';
+    return ts.slice(0,10) === dateStr;
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════════════
+function renderAll() {
+  renderDashboard();
+  renderDaftar(allRecords);
+  renderKonfirmasi();
+  document.getElementById('totalCount').textContent = allRecords.length;
+  document.getElementById('pendingCount').textContent = allRecords.filter(r => r.status === 'pending').length;
+}
+
+function renderDashboard() {
+  const dayRecords = getRecordsForDate(dashboardDate);
+
+  // Stats for selected day
+  const total = dayRecords.length;
+  const pending = dayRecords.filter(r => r.status === 'pending').length;
+  const returned = dayRecords.filter(r => r.status === 'returned').length;
+  const wb = dayRecords.reduce((s, r) => s + (r.jumlah || 0), 0);
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-pending').textContent = pending;
+  document.getElementById('stat-returned').textContent = returned;
+  document.getElementById('stat-wb').textContent = wb;
+
+  // Activity count label
+  const countEl = document.getElementById('activityCount');
+  if (countEl) countEl.textContent = total ? `${total} laporan` : '';
+
+  // Week chart
+  renderWeekChart();
+
+  // Record list
+  const el = document.getElementById('recentActivity');
+  if (!dayRecords.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">Belum ada laporan untuk tanggal ini</div></div>`;
+    return;
+  }
+  el.innerHTML = dayRecords.map(r => buildRecordCard(r, false)).join('');
+}
+
+function renderWeekChart() {
+  const el = document.getElementById('weekChart');
+  if (!el) return;
+
+  // Build last 7 days
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    days.push(d.toISOString().slice(0,10));
+  }
+
+  const counts = days.map(d => getRecordsForDate(d).length);
+  const maxCount = Math.max(...counts, 1);
+
+  el.innerHTML = days.map((d, i) => {
+    const count = counts[i];
+    const heightPct = Math.max((count / maxCount) * 100, count > 0 ? 8 : 4);
+    const isSelected = d === dashboardDate;
+    const dayName = new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'short' });
+    return `
+      <div class="week-bar-col ${isSelected ? 'selected' : ''}" onclick="pickDay('${d}')" title="${d}: ${count} laporan">
+        <div class="week-count">${count || ''}</div>
+        <div class="week-bar ${count > 0 ? 'has-data' : ''}" style="height:${heightPct}%"></div>
+        <div class="week-day-label">${dayName}</div>
+      </div>`;
+  }).join('');
+}
+
+function filterRecords() {
+  const search = document.getElementById('filterSearch').value.toLowerCase();
+  const status = document.getElementById('filterStatus').value;
+  const date = document.getElementById('filterDate').value;
+
+  let filtered = allRecords.filter(r => {
+    const matchSearch = !search ||
+      r.petugas?.toLowerCase().includes(search) ||
+      r.tujuan?.toLowerCase().includes(search) ||
+      r.blok?.toLowerCase().includes(search);
+    const matchStatus = !status || r.status === status;
+    const matchDate = !date || r.waktuKeluar?.startsWith(date) || r.createdAt?.startsWith(date);
+    return matchSearch && matchStatus && matchDate;
+  });
+
+  renderDaftar(filtered);
+}
+
+function renderDaftar(records) {
+  const el = document.getElementById('daftarList');
+  if (!records.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">📂</div><div class="empty-text">Tidak ada laporan ditemukan</div></div>`;
+    return;
+  }
+  el.innerHTML = records.map(r => buildRecordCard(r, true)).join('');
+}
+
+function renderKonfirmasi() {
+  const el = document.getElementById('konfirmasiList');
+  const pending = allRecords.filter(r => r.status === 'pending');
+  if (!pending.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-text">Tidak ada pengeluaran yang perlu dikonfirmasi</div></div>`;
+    return;
+  }
+  el.innerHTML = pending.map(r => buildKonfirmasiCard(r)).join('');
+}
+
+function buildRecordCard(r, showFull) {
+  const ts = r.waktuKeluar ? new Date(r.waktuKeluar).toLocaleString('id-ID') : '-';
+  const badge = r.status === 'returned'
+    ? `<span class="badge badge-returned">● Sudah Kembali</span>`
+    : `<span class="badge badge-pending">● Belum Kembali</span>`;
+
+  const photos = (r.photos || []).slice(0,5).map(p =>
+    `<div class="photo-thumb" onclick="openLightbox('${p}')"><img src="${p}" loading="lazy"></div>`
+  ).join('');
+
+  const returnInfo = r.status === 'returned' ? `
+    <div class="divider"></div>
+    <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--green)">
+      ✅ Dikonfirmasi kembali oleh <strong>${r.konfirmasiPetugas || '-'}</strong>
+      pada ${r.konfirmasiWaktu ? new Date(r.konfirmasiWaktu).toLocaleString('id-ID') : '-'}
+      ${r.konfirmasiCatatan ? `· <em style="color:var(--text3)">${r.konfirmasiCatatan}</em>` : ''}
+    </div>
+  ` : '';
+
+  return `
+  <div class="record-card" id="card-${r.id}">
+    <div class="record-header">
+      <span class="record-id">#${r.id?.slice(-6).toUpperCase() || 'N/A'}</span>
+      <span>${badge}</span>
+      <span class="record-time">${ts}</span>
+    </div>
+    <div class="record-body">
+      <div class="record-meta">
+        <div class="meta-item">
+          <div class="meta-label">Petugas Pengawal</div>
+          <div class="meta-value">👮 ${r.petugas || '-'}</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-label">Tujuan Pengeluaran</div>
+          <div class="meta-value">📍 ${r.tujuan || '-'}</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-label">Jumlah WB</div>
+          <div class="meta-value">👤 ${r.jumlah || 0} Orang</div>
+        </div>
+        ${r.blok ? `<div class="meta-item"><div class="meta-label">Blok Hunian</div><div class="meta-value">🏠 ${r.blok}</div></div>` : ''}
+        ${r.kendaraan ? `<div class="meta-item"><div class="meta-label">Kendaraan</div><div class="meta-value">🚐 ${r.kendaraan}</div></div>` : ''}
+        ${r.nip ? `<div class="meta-item"><div class="meta-label">NIP</div><div class="meta-value">${r.nip}</div></div>` : ''}
+      </div>
+      ${r.namaWB ? `<div style="font-size:12px;color:var(--text2);background:var(--surface2);border-radius:6px;padding:10px;margin-bottom:10px;white-space:pre-line">${r.namaWB}</div>` : ''}
+      ${r.catatan ? `<div style="font-size:12px;color:var(--text3);font-style:italic;margin-bottom:8px">📝 ${r.catatan}</div>` : ''}
+      ${photos ? `<div class="photos-row">${photos}</div>` : ''}
+      ${returnInfo}
+    </div>
+  </div>`;
+}
+
+function buildKonfirmasiCard(r) {
+  const ts = r.waktuKeluar ? new Date(r.waktuKeluar).toLocaleString('id-ID') : '-';
+  return `
+  <div class="record-card">
+    <div class="record-header">
+      <span class="record-id">#${r.id?.slice(-6).toUpperCase()}</span>
+      <span class="badge badge-pending">● Menunggu Konfirmasi</span>
+      <span class="record-time">${ts}</span>
+    </div>
+    <div class="record-body">
+      <div class="record-meta">
+        <div class="meta-item">
+          <div class="meta-label">Petugas Pengawal</div>
+          <div class="meta-value">👮 ${r.petugas}</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-label">Tujuan</div>
+          <div class="meta-value">📍 ${r.tujuan}</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-label">Jumlah WB</div>
+          <div class="meta-value">👤 ${r.jumlah} Orang</div>
+        </div>
+        ${r.blok ? `<div class="meta-item"><div class="meta-label">Blok Hunian</div><div class="meta-value">🏠 ${r.blok}</div></div>` : ''}
+      </div>
+      ${r.namaWB ? `<div style="font-size:12px;color:var(--text2);background:var(--surface2);border-radius:6px;padding:10px;margin-bottom:12px;white-space:pre-line">${r.namaWB}</div>` : ''}
+      <div class="confirm-box">
+        <div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:4px">Konfirmasi oleh Petugas Blok Hunian:</div>
+          <div class="confirm-form">
+            <input type="text" class="confirm-input" id="kPetugas_${r.id}" placeholder="Nama petugas blok">
+            <input type="text" class="confirm-input" id="kCatatan_${r.id}" placeholder="Catatan (opsional)" style="width:200px">
+          </div>
+        </div>
+        <button class="btn btn-success" onclick="konfirmasiKembali('${r.id}')">
+          ✅ Konfirmasi Kembali
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════
+//  KONFIRMASI
+// ═══════════════════════════════════════════════
+async function konfirmasiKembali(id) {
+  const petugasEl = document.getElementById('kPetugas_' + id);
+  const catatanEl = document.getElementById('kCatatan_' + id);
+  if (!petugasEl.value.trim()) {
+    showToast('Isi nama petugas blok terlebih dahulu', 'error');
+    petugasEl.focus(); return;
+  }
+
+  showLoading(true);
+  const update = {
+    status: 'returned',
+    konfirmasiPetugas: petugasEl.value.trim(),
+    konfirmasiCatatan: catatanEl.value.trim(),
+    konfirmasiWaktu: new Date().toISOString()
+  };
+
+  const fb = window._firebase;
+  if (!fb.useLocalFallback() && fb.db && !id.startsWith('local_')) {
+    try {
+      await fb.updateDoc(fb.doc(fb.db, 'laporan', id), update);
+      showToast('Konfirmasi berhasil dicatat ✓', 'success');
+    } catch(err) {
+      console.error(err); showToast('Gagal menyimpan konfirmasi', 'error');
+    }
+  } else {
+    const records = fb.getLocalRecords();
+    const idx = records.findIndex(r => r.id === id);
+    if (idx !== -1) { Object.assign(records[idx], update); fb.saveLocalRecords(records); }
+    allRecords = fb.getLocalRecords();
+    showToast('Konfirmasi dicatat (mode lokal) ✓', 'success');
+    renderAll();
+  }
+
+  showLoading(false);
+}
+
+// ═══════════════════════════════════════════════
+//  LIGHTBOX
+// ═══════════════════════════════════════════════
+function openLightbox(src) {
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+}
+
+// ═══════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════
+function showLoading(v) {
+  document.getElementById('loadingOverlay').classList.toggle('show', v);
+}
+
+function showToast(msg, type='info') {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.innerHTML = `<span>${type==='success'?'✓':type==='error'?'✕':'ℹ'}</span> ${msg}`;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+function printPage() { window.print(); }
+</script>
 </body>
 </html>
